@@ -19,6 +19,7 @@ The project's insights and predictive models can enhance targeted marketing by f
 
 ## Code
 The code is present in ```outcome_predictions.py```
+
 Jupyter notebook file is ```main.ipynb```
 
 To reproduce results, run:
