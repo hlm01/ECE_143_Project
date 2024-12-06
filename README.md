@@ -18,7 +18,11 @@ We used EDA, linear regression, logistical regression, and other types of non-li
 The project's insights and predictive models can enhance targeted marketing by focusing on animals with lower adoption rates, guide resource allocation to support harder-to-adopt animals, and inform policies like adjusting adoption fees or special programs in shelters.
 
 ## Code
-All the code and results are in the jupyter notebook file ```main.ipynb```.
+The code is present in ```outcome_predictions.py```
+Jupyter notebook file is ```main.ipynb```
+
+To reproduce results, run:
+```python3 outcome_predictions.py```
 
 
 ## Environment Setup
