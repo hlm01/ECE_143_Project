@@ -411,6 +411,7 @@ def gender_vs_adoption(filepath):
     df['intake_datetime'] = pd.to_datetime(df['intake_datetime'])
 
     df_dogs = df[df['animal_type']=='Dog']
+    df_dogs['encoded_adoption'] = df_dogs['outcome_type'].apply(one_hot_adoption)
     df_dogs['gender_classified'] = df_dogs['sex_upon_intake'].apply(one_hot_gender)
     df_dogs = pd.get_dummies(df_dogs, columns = ['gender_classified'], drop_first=False)
     model_gender = smf.ols(formula='encoded_adoption ~ gender_classified_F + gender_classified_M + 1', data=df_dogs)
@@ -433,6 +434,7 @@ def color_vs_adoption(filepath):
     df['intake_datetime'] = pd.to_datetime(df['intake_datetime'])
 
     df_dogs = df[df['animal_type']=='Dog']
+    df_dogs['encoded_adoption'] = df_dogs['outcome_type'].apply(one_hot_adoption)
     df_dogs = pd.get_dummies(df_dogs, columns = ['color'], drop_first=False)
     model_color = smf.ols(formula='encoded_adoption ~ color_Apricot + color_Black + color_Blue + color_Brown + color_Gray + color_Tan + 1', data=df_dogs)
     results_color = model_color.fit()
