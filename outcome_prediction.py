@@ -3,6 +3,15 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import statsmodels.formula.api as smf
+import statsmodels as sm
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import classification_report, mean_squared_error, r2_score
+from sklearn.feature_selection import VarianceThreshold
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.ensemble import GradientBoostingRegressor
 
 def load_and_preprocess_data(file_path):
     """
@@ -339,6 +348,590 @@ def plot_sex_distribution(sex_counts, animal_type):
     plt.tight_layout()
     plt.show()
 
+def one_hot_adoption(adopted):
+    '''
+    One-hot encodes adoption
+
+    Arg: 
+    adopted: pd.Series to apply to
+    '''
+    if adopted == "Adoption":
+        return 1
+    else:
+        return 0
+
+def one_hot_gender(gender):
+    '''
+    One hot encodes gender
+
+    Args: 
+    gender: pd.Series to apply to
+    '''
+    if "Fe" in gender:
+        return 'F'
+    else:
+        return 'M'
+
+def age_vs_adoption(filepath):
+    '''
+    Fits a linear regression model for age of dogs versus adoption likelihood
+
+    Args:
+    filepath(str): filepath of csv
+    '''
+    df = pd.read_csv(filepath)
+    df.dropna(inplace=True)
+    df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
+    df['outcome_datetime'] = pd.to_datetime(df['outcome_datetime'])
+    df['intake_datetime'] = pd.to_datetime(df['intake_datetime'])
+
+    df_dogs = df[df['animal_type']=='Dog']
+    df_dogs['age_upon_intake_years'] = df_dogs["age_upon_intake_(years)"]
+    df_dogs['encoded_adoption'] = df_dogs['outcome_type'].apply(one_hot_adoption)
+
+    model_age = smf.ols(formula='encoded_adoption ~ age_upon_intake_years + 1', data=df_dogs)
+    results_age = model_age.fit()
+
+    return results_age
+
+def gender_vs_adoption(filepath):
+    '''
+    Fits a linear regression model for gender of dogs versus adoption likelihood
+
+    Args:
+    filepath (str): filepath of csv
+    '''
+    df = pd.read_csv(filepath)
+    df.dropna(inplace=True)
+    df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
+    df['outcome_datetime'] = pd.to_datetime(df['outcome_datetime'])
+    df['intake_datetime'] = pd.to_datetime(df['intake_datetime'])
+
+    df_dogs = df[df['animal_type']=='Dog']
+    df_dogs['gender_classified'] = df_dogs['sex_upon_intake'].apply(one_hot_gender)
+    df_dogs = pd.get_dummies(df_dogs, columns = ['gender_classified'], drop_first=False)
+    model_gender = smf.ols(formula='encoded_adoption ~ gender_classified_F + gender_classified_M + 1', data=df_dogs)
+    results_gender = model_gender.fit()
+
+    return results_gender
+
+def color_vs_adoption(filepath):
+    '''
+    Fits a linear regression model for color of dogs versus adoption likelihood
+
+    Args:
+    filepath (str): filepath of csv
+    '''
+    df = pd.read_csv(filepath)
+    df.dropna(inplace=True)
+    df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
+    df['outcome_datetime'] = pd.to_datetime(df['outcome_datetime'])
+    df['intake_datetime'] = pd.to_datetime(df['intake_datetime'])
+
+    df_dogs = df[df['animal_type']=='Dog']
+    df_dogs = pd.get_dummies(df_dogs, columns = ['color'], drop_first=False)
+    model_color = smf.ols(formula='encoded_adoption ~ color_Apricot + color_Black + color_Blue + color_Brown + color_Gray + color_Tan + 1', data=df_dogs)
+    results_color = model_color.fit()
+
+    return results_color
+
+def logistic_regression_cats(filepath):
+    '''
+    Performs logistic regression for cats using the features age, sex, breed, color, and intake condition to predict adoption likelihood
+
+    Args
+    filepath (str): filepath of csv
+    '''
+    df = load_and_preprocess_data(filepath)
+    # Filter data for cats and create a binary target for adoption
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for logistic regression (adoption likelihood)
+    features_classification = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_classification = pd.get_dummies(cats[features_classification].to_pandas(), drop_first=True)
+    y_classification = cats['adopted'].to_pandas()
+
+    # Split and train logistic regression
+    X_train_clf, X_test_clf, y_train_clf, y_test_clf = train_test_split(
+        X_classification, y_classification, test_size=0.2, random_state=42
+    )
+
+    logistic_model = LogisticRegression(max_iter=1000)
+    logistic_model.fit(X_train_clf, y_train_clf)
+
+    # Predict and evaluate logistic regression
+    # change the threshold to 0.6 for predicting
+    predictions_clf = logistic_model.predict_proba(X_test_clf)[:, 1] > 0.5
+    classification_report_clf = classification_report(y_test_clf, predictions_clf)
+
+    return classification_report_clf
+
+def random_forest_cats(filepath):
+    '''
+    RandomForest model to predict time in shelter
+
+    Args:
+    filepath (str): filepath for csv
+    '''
+    df = load_and_preprocess_data(filepath)
+    # Filter data for cats and create a binary target for adoption
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for regression (time in shelter prediction)
+    features_regression = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_regression = pd.get_dummies(cats[features_regression].to_pandas(), drop_first=True)
+    y_regression = cats['time_in_shelter_days'].to_pandas()
+
+    # Split and train random forest regressor
+    X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+        X_regression, y_regression, test_size=0.3, random_state=42
+    )
+
+    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_regressor.fit(X_train_reg, y_train_reg)
+
+    # Predict and evaluate random forest regressor
+    predictions_reg = rf_regressor.predict(X_test_reg)
+    mse = mean_squared_error(y_test_reg, predictions_reg)
+    r2 = r2_score(y_test_reg, predictions_reg)
+
+    return mse, r2
+
+def extended_regression(filepath):
+    '''
+    Extended Regression model for month of birth
+
+    Args:
+    filepath (str): filepath for csv
+    '''
+    df = load_and_preprocess_data(filepath)
+    # Filter data for cats and create a binary target for adoption
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for regression (time in shelter prediction)
+    features_regression = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_regression = pd.get_dummies(cats[features_regression].to_pandas(), drop_first=True)
+    y_regression = cats['time_in_shelter_days'].to_pandas()
+
+    # Split and train random forest regressor
+    X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+        X_regression, y_regression, test_size=0.3, random_state=42
+    )
+
+    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_regressor.fit(X_train_reg, y_train_reg)
+
+    # Predict and evaluate random forest regressor
+    predictions_reg = rf_regressor.predict(X_test_reg)
+    mse = mean_squared_error(y_test_reg, predictions_reg)
+    r2 = r2_score(y_test_reg, predictions_reg)
+
+    additional_features_regression = [
+        'dob_month'
+    ]
+    X_regression_extended = pd.get_dummies(
+        cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
+    )
+
+    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    print(ols_model.summary())
+
+    # Fix significant features extraction
+    significant_features = ols_model.pvalues[ols_model.pvalues < 0.05].index
+    print("\nSignificant Features:")
+    print(significant_features)
+    X_regression_significant = X_regression_extended[significant_features]
+
+    # Remove near-zero variance features
+    variance_filter = VarianceThreshold(threshold=0.01)
+    X_reduced_variance = variance_filter.fit_transform(X_regression_significant)
+    columns_retained = X_regression_significant.columns[variance_filter.get_support()]
+
+    # Recreate the DataFrame with reduced features
+    X_regression_cleaned = pd.DataFrame(X_reduced_variance, columns=columns_retained)
+
+    # Recompute VIF
+    vif_data_cleaned = pd.DataFrame()
+    vif_data_cleaned["feature"] = X_regression_cleaned.columns
+    vif_data_cleaned["VIF"] = [
+        variance_inflation_factor(X_regression_cleaned.values, i)
+        for i in range(X_regression_cleaned.shape[1])
+    ]
+    print("\nVariance Inflation Factor (VIF) after removing near-zero variance features:")
+    print(vif_data_cleaned)
+
+    # Remove features with high VIF (>10)
+    low_vif_features_cleaned = vif_data_cleaned[vif_data_cleaned["VIF"] < 10]["feature"]
+    X_regression_low_vif_cleaned = X_regression_cleaned[low_vif_features_cleaned]
+
+    # Train Gradient Boosting with cleaned features
+    X_train_reg_cleaned, X_test_reg_cleaned, y_train_reg_cleaned, y_test_reg_cleaned = train_test_split(
+        X_regression_low_vif_cleaned, y_regression, test_size=0.3, random_state=42
+    )
+
+    gb_regressor_cleaned = GradientBoostingRegressor(n_estimators=200, learning_rate=0.1, random_state=42)
+    gb_regressor_cleaned.fit(X_train_reg_cleaned, y_train_reg_cleaned)
+
+    # Predict and evaluate
+    predictions_reg_cleaned = gb_regressor_cleaned.predict(X_test_reg_cleaned)
+    mse_cleaned = mean_squared_error(y_test_reg_cleaned, predictions_reg_cleaned)
+    r2_cleaned = r2_score(y_test_reg_cleaned, predictions_reg_cleaned)
+
+    return mse_cleaned, r2_cleaned
+
+def plot_feature_importance(df):
+    '''
+    Creates a Dataframe of the importance of features and plots them
+
+    Args:
+    df: pd.DataFrame to filter for cats
+    '''
+
+    # Filter data for cats and create a binary target for adoption
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for regression (time in shelter prediction)
+    features_regression = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_regression = pd.get_dummies(cats[features_regression].to_pandas(), drop_first=True)
+    y_regression = cats['time_in_shelter_days'].to_pandas()
+
+    # Split and train random forest regressor
+    X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+        X_regression, y_regression, test_size=0.3, random_state=42
+    )
+
+    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_regressor.fit(X_train_reg, y_train_reg)
+
+    # Predict and evaluate random forest regressor
+    predictions_reg = rf_regressor.predict(X_test_reg)
+    mse = mean_squared_error(y_test_reg, predictions_reg)
+    r2 = r2_score(y_test_reg, predictions_reg)
+
+    additional_features_regression = [
+        'dob_month'
+    ]
+    X_regression_extended = pd.get_dummies(
+        cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
+    )
+
+    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    print(ols_model.summary())
+
+    # Fix significant features extraction
+    significant_features = ols_model.pvalues[ols_model.pvalues < 0.05].index
+    print("\nSignificant Features:")
+    print(significant_features)
+    X_regression_significant = X_regression_extended[significant_features]
+
+    # Remove near-zero variance features
+    variance_filter = VarianceThreshold(threshold=0.01)
+    X_reduced_variance = variance_filter.fit_transform(X_regression_significant)
+    columns_retained = X_regression_significant.columns[variance_filter.get_support()]
+
+    # Recreate the DataFrame with reduced features
+    X_regression_cleaned = pd.DataFrame(X_reduced_variance, columns=columns_retained)
+
+    # Recompute VIF
+    vif_data_cleaned = pd.DataFrame()
+    vif_data_cleaned["feature"] = X_regression_cleaned.columns
+    vif_data_cleaned["VIF"] = [
+        variance_inflation_factor(X_regression_cleaned.values, i)
+        for i in range(X_regression_cleaned.shape[1])
+    ]
+    print("\nVariance Inflation Factor (VIF) after removing near-zero variance features:")
+    print(vif_data_cleaned)
+
+    # Remove features with high VIF (>10)
+    low_vif_features_cleaned = vif_data_cleaned[vif_data_cleaned["VIF"] < 10]["feature"]
+    X_regression_low_vif_cleaned = X_regression_cleaned[low_vif_features_cleaned]
+
+    # Train Gradient Boosting with cleaned features
+    X_train_reg_cleaned, X_test_reg_cleaned, y_train_reg_cleaned, y_test_reg_cleaned = train_test_split(
+        X_regression_low_vif_cleaned, y_regression, test_size=0.3, random_state=42
+    )
+
+    gb_regressor_cleaned = GradientBoostingRegressor(n_estimators=200, learning_rate=0.1, random_state=42)
+    gb_regressor_cleaned.fit(X_train_reg_cleaned, y_train_reg_cleaned)
+
+    # Retrieve feature importances
+    feature_importances = gb_regressor_cleaned.feature_importances_
+
+    # Create a DataFrame for feature importance
+    importance_df = pd.DataFrame({
+        'Feature': X_regression_low_vif_cleaned.columns,
+        'Importance': feature_importances
+    }).sort_values(by='Importance', ascending=False)
+
+    # Display the feature importance
+    top_important_features = importance_df.head(10)
+    print("Important Features for Predicting Time in Shelter:")
+    print(top_important_features)
+
+    # Plot the feature importance
+    plt.figure(figsize=(10, 6))
+    plt.barh(top_important_features['Feature'], top_important_features['Importance'])
+    plt.xlabel('Importance')
+    plt.ylabel('Feature')
+    plt.title('Important Features')
+    plt.gca().invert_yaxis()  # Reverse the y-axis for better readability
+    plt.show()
+
+    return importance_df
+
+    # Function to make predictions based on the regression model
+def predict_time_in_shelter(age, dob_month, sex_upon_intake, breed, color, intake_condition, df):
+    '''
+    Predict time in shelter for scenarios based on regression model
+
+    Args:
+    age (int): age of cat
+    dob (int): date of birth of cat
+    sex_upon_intake (str): sex of cat upon intake
+    breed (str): breed of cat
+    color (str): color of cat
+    intake_condition (str): intake condition of cat
+    df (pd.DataFrame): dataframe to use
+    '''
+    # Filter data for cats and create a binary target for adoption
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for regression (time in shelter prediction)
+    features_regression = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_regression = pd.get_dummies(cats[features_regression].to_pandas(), drop_first=True)
+    y_regression = cats['time_in_shelter_days'].to_pandas()
+
+    # Split and train random forest regressor
+    X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+        X_regression, y_regression, test_size=0.3, random_state=42
+    )
+
+    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_regressor.fit(X_train_reg, y_train_reg)
+
+    # Predict and evaluate random forest regressor
+    predictions_reg = rf_regressor.predict(X_test_reg)
+    mse = mean_squared_error(y_test_reg, predictions_reg)
+    r2 = r2_score(y_test_reg, predictions_reg)
+
+    additional_features_regression = [
+        'dob_month'
+    ]
+    X_regression_extended = pd.get_dummies(
+        cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
+    )
+
+    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    print(ols_model.summary())
+
+    # Fix significant features extraction
+    significant_features = ols_model.pvalues[ols_model.pvalues < 0.05].index
+    print("\nSignificant Features:")
+    print(significant_features)
+    X_regression_significant = X_regression_extended[significant_features]
+
+    # Remove near-zero variance features
+    variance_filter = VarianceThreshold(threshold=0.01)
+    X_reduced_variance = variance_filter.fit_transform(X_regression_significant)
+    columns_retained = X_regression_significant.columns[variance_filter.get_support()]
+
+    # Recreate the DataFrame with reduced features
+    X_regression_cleaned = pd.DataFrame(X_reduced_variance, columns=columns_retained)
+
+    # Recompute VIF
+    vif_data_cleaned = pd.DataFrame()
+    vif_data_cleaned["feature"] = X_regression_cleaned.columns
+    vif_data_cleaned["VIF"] = [
+        variance_inflation_factor(X_regression_cleaned.values, i)
+        for i in range(X_regression_cleaned.shape[1])
+    ]
+    print("\nVariance Inflation Factor (VIF) after removing near-zero variance features:")
+    print(vif_data_cleaned)
+
+    # Remove features with high VIF (>10)
+    low_vif_features_cleaned = vif_data_cleaned[vif_data_cleaned["VIF"] < 10]["feature"]
+    X_regression_low_vif_cleaned = X_regression_cleaned[low_vif_features_cleaned]
+
+    # Train Gradient Boosting with cleaned features
+    X_train_reg_cleaned, X_test_reg_cleaned, y_train_reg_cleaned, y_test_reg_cleaned = train_test_split(
+        X_regression_low_vif_cleaned, y_regression, test_size=0.3, random_state=42
+    )
+
+    gb_regressor_cleaned = GradientBoostingRegressor(n_estimators=200, learning_rate=0.1, random_state=42)
+    gb_regressor_cleaned.fit(X_train_reg_cleaned, y_train_reg_cleaned)
+
+    # Create a feature dictionary with default values (0) for one-hot encoded features
+    feature_dict = {feature: 0 for feature in X_regression_low_vif_cleaned.columns}
+    
+    # Assign values to the specified features
+    feature_dict['age_upon_intake_(years)'] = age
+    feature_dict['dob_month'] = dob_month
+    feature_dict[f'sex_upon_intake_{sex_upon_intake}'] = 1
+    feature_dict[f'breed_{breed}'] = 1
+    feature_dict[f'color_{color}'] = 1
+    feature_dict[f'intake_condition_{intake_condition}'] = 1
+    
+    # Convert dictionary to a DataFrame for prediction
+    feature_vector = pd.DataFrame([feature_dict])
+    
+    # Ensure columns match the training set
+    feature_vector = feature_vector.reindex(columns=X_regression_low_vif_cleaned.columns, fill_value=0)
+    
+    # Predict using the trained Gradient Boosting model
+    predicted_days = gb_regressor_cleaned.predict(feature_vector)
+    return predicted_days[0]
+
+def predict_adoption(age, dob_month, sex_upon_intake, breed, color, intake_condition, df):
+    '''
+    Predict adoption outcome for scenarios based on regression model
+
+    Args:
+    age (int): age of cat
+    dob (int): date of birth of cat
+    sex_upon_intake (str): sex of cat upon intake
+    breed (str): breed of cat
+    color (str): color of cat
+    intake_condition (str): intake condition of cat
+    df (pd.DataFrame): dataframe to use
+    '''
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    # Prepare features for logistic regression (adoption likelihood)
+    features_classification = [
+        'age_upon_intake_(years)', 'sex_upon_intake', 'breed', 'color', 'intake_condition'
+    ]
+    X_classification = pd.get_dummies(cats[features_classification].to_pandas(), drop_first=True)
+    y_classification = cats['adopted'].to_pandas()
+
+    # Split and train logistic regression
+    X_train_clf, X_test_clf, y_train_clf, y_test_clf = train_test_split(
+        X_classification, y_classification, test_size=0.2, random_state=42
+    )
+
+    logistic_model = LogisticRegression(max_iter=1000)
+    logistic_model.fit(X_train_clf, y_train_clf)
+
+    # Predict and evaluate logistic regression
+    # change the threshold to 0.6 for predicting
+    predictions_clf = logistic_model.predict_proba(X_test_clf)[:, 1] > 0.5
+    # Create a feature dictionary with default values (0) for one-hot encoded features
+    feature_dict = {feature: 0 for feature in X_classification.columns}
+    
+    # Assign values to the specified features
+    feature_dict['age_upon_intake_(years)'] = age
+    feature_dict[f'sex_upon_intake_{sex_upon_intake}'] = 1
+    feature_dict[f'breed_{breed}'] = 1
+    feature_dict[f'color_{color}'] = 1
+    feature_dict[f'intake_condition_{intake_condition}'] = 1
+    
+    # Convert dictionary to a DataFrame for prediction
+    feature_vector = pd.DataFrame([feature_dict])
+    
+    # Ensure columns match the training set
+    feature_vector = feature_vector.reindex(columns=X_classification.columns, fill_value=0)
+    
+    # Predict using the trained logistic regression model
+    adoption_prob = logistic_model.predict_proba(feature_vector)[0, 1]
+    return adoption_prob
+
+def plot_seasonal_effect(df):
+    '''
+    Plot effects of seasons on cat adoption
+
+    Args:
+    df (pd.DataFrame): dataframe to use
+    '''
+
+    cats = df.filter(pl.col('animal_type') == 'Cat')
+    cats = cats.with_columns(
+        pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
+    )
+
+    # Drop the row where the sex is unknown
+    cats = cats.filter(pl.col("sex_upon_intake") != "Unknown")
+
+    adopted_cats = cats.filter(pl.col('adopted') == 1).to_pandas()
+
+    # Ensure outcome_datetime is in datetime format
+    adopted_cats['outcome_datetime'] = pd.to_datetime(adopted_cats['outcome_datetime'])
+
+    # Extract the month of adoption
+    adopted_cats['outcome_month'] = adopted_cats['outcome_datetime'].dt.month
+
+    # Aggregate adoptions by month
+    monthly_adoption_counts = adopted_cats['outcome_month'].value_counts().sort_index()
+
+    # Plot seasonal trends in cat adoptions
+    plt.figure(figsize=(10, 6))
+    plt.bar(monthly_adoption_counts.index,
+            monthly_adoption_counts.values,
+            tick_label=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    plt.title('Seasonal Effect on Cat Adoptions')
+    plt.xlabel('Month')
+    plt.ylabel('Number of Adoptions')
+    plt.xticks(rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.show()
+
+    # Print monthly adoption counts for further analysis
+    print(monthly_adoption_counts)
+
+
+
+
+
+
+
+
 
 def main():
     df = load_and_preprocess_data("./aac_intakes_outcomes.csv")
@@ -364,6 +957,60 @@ def main():
 
         # animal_outcome = analyze_specific_animal(df, animal_type)
         # plot_animal_outcome_distribution(animal_outcome, animal_type)
+
+    model_age = age_vs_adoption("./aac_intakes_outcomes.csv")
+    print(model_age.summary())
+    # print(model_age.pvalues[1])
+
+    model_gender = gender_vs_adoption("./aac_intakes_outcomes.csv")
+    print(model_gender.summary())
+    # print(model_gender.pvalues[1])
+    # print(model_gender.pvalues[2])
+
+    results_color = color_vs_adoption("./aac_intakes_outcomes.csv")
+    print(results_color.summary())
+
+    classification_report_cats = logistic_regression_cats("./aac_intakes_outcomes.csv")
+    print(classification_report_cats)
+
+    mse, r2 = random_forest_cats("./aac_intakes_outcomes.csv")
+    print("\nRegression Metrics (Time in Shelter):")
+    print(f"Mean Squared Error: {mse:.2f}")
+    print(f"R^2 Score: {r2:.2f}")
+
+    mse_cleaned, r2_cleaned = extended_regression("./aac_intakes_outcomes.csv")
+    print("\nRegression Metrics (Cleaned Features):")
+    print(f"Mean Squared Error: {mse_cleaned:.2f}")
+    print(f"R^2 Score: {r2_cleaned:.2f}")
+
+    plot_feature_importance(df)
+
+    # Example scenarios
+    scenarios = [
+        {'age': 2, 'dob_month': 5, 'sex_upon_intake': 'Neutered Male', 'breed': 'Chartreux Mix', 'color': 'Blue/Tortie', 'intake_condition': 'Normal', 'df':df},
+        {'age': 2, 'dob_month': 3, 'sex_upon_intake': 'Spayed Female', 'breed': 'Cymric Mix', 'color': 'Lynx Point/Tortie Point', 'intake_condition': 'Normal', 'df':df},
+        {'age': 2, 'dob_month': 3, 'sex_upon_intake': 'Intact Female', 'breed': 'Cymric Mix', 'color': 'Lynx Point/Tortie Point', 'intake_condition': 'Normal', 'df':df},
+        {'age': 15, 'dob_month': 3, 'sex_upon_intake': 'Spayed Female', 'breed': 'Cymric Mix', 'color': 'Lynx Point/Tortie Point', 'intake_condition': 'Normal', 'df':df},
+        {'age': 5, 'dob_month': 10, 'sex_upon_intake': 'Neutered Male', 'breed': 'Pixiebob Shorthair Mix', 'color': 'Orange Tabby/Brown', 'intake_condition': 'Injured', 'df':df},
+    ]
+
+    # Make predictions for each scenario
+    for i, scenario in enumerate(scenarios):
+        predicted_days = predict_time_in_shelter(**scenario)
+        print(f"Scenario {i+1}: Predicted time in shelter = {predicted_days:.2f} days")
+
+    # Make predictions for each scenario
+    for i, scenario in enumerate(scenarios):
+        adoption_prob = predict_adoption(**scenario)
+        print(f"Scenario {i+1}: Probability of adoption = {adoption_prob:.2f}")
+
+    plot_seasonal_effect(df)
+
+
+
+    
+
+
 
 if __name__ == "__main__":
     main()
