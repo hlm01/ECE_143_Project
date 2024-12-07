@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 import statsmodels as sm
+import statsmodels.api as sma
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -566,8 +567,8 @@ def extended_regression(filepath):
         cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
     )
 
-    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
-    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    X_with_const = sma.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sma.OLS(y_regression, X_with_const).fit()
     print(ols_model.summary())
 
     # Fix significant features extraction
@@ -620,7 +621,7 @@ def plot_feature_importance(df):
     Args:
     df: pd.DataFrame to filter for cats
     '''
-    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(df, pl.DataFrame), "df must be a polars DataFrame"
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
@@ -657,8 +658,8 @@ def plot_feature_importance(df):
         cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
     )
 
-    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
-    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    X_with_const = sma.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sma.OLS(y_regression, X_with_const).fit()
     print(ols_model.summary())
 
     # Fix significant features extraction
@@ -737,7 +738,7 @@ def predict_time_in_shelter(age, dob_month, sex_upon_intake, breed, color, intak
     df (pd.DataFrame): dataframe to use
     '''
 
-    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(df, pl.DataFrame), "df must be a polars DataFrame"
     assert isinstance(age, int), "age must be an int"
     assert isinstance(dob_month, int), "dob_month must be an int"
     assert isinstance(breed, str), "breed must be a str"
@@ -779,8 +780,8 @@ def predict_time_in_shelter(age, dob_month, sex_upon_intake, breed, color, intak
         cats[features_regression + additional_features_regression].to_pandas(), drop_first=True
     )
 
-    X_with_const = sm.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
-    ols_model = sm.OLS(y_regression, X_with_const).fit()
+    X_with_const = sma.add_constant(X_regression_extended.astype(float))  # Add constant for intercept
+    ols_model = sma.OLS(y_regression, X_with_const).fit()
     print(ols_model.summary())
 
     # Fix significant features extraction
@@ -853,7 +854,7 @@ def predict_adoption(age, dob_month, sex_upon_intake, breed, color, intake_condi
     intake_condition (str): intake condition of cat
     df (pd.DataFrame): dataframe to use
     '''
-    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(df, pl.DataFrame), "df must be a polars DataFrame"
     assert isinstance(age, int), "age must be an int"
     assert isinstance(dob_month, int), "dob_month must be an int"
     assert isinstance(breed, str), "breed must be a str"
@@ -913,7 +914,7 @@ def plot_seasonal_effect(df):
     Args:
     df (pd.DataFrame): dataframe to use
     '''
-    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(df, pl.DataFrame), "df must be a polars DataFrame"
 
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
