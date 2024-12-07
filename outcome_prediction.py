@@ -367,6 +367,7 @@ def one_hot_gender(gender):
     Args: 
     gender: pd.Series to apply to
     '''
+    
     if "Fe" in gender:
         return 'F'
     else:
@@ -379,6 +380,7 @@ def age_vs_adoption(filepath):
     Args:
     filepath(str): filepath of csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = pd.read_csv(filepath)
     df.dropna(inplace=True)
     df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
@@ -401,6 +403,7 @@ def gender_vs_adoption(filepath):
     Args:
     filepath (str): filepath of csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = pd.read_csv(filepath)
     df.dropna(inplace=True)
     df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
@@ -422,6 +425,7 @@ def color_vs_adoption(filepath):
     Args:
     filepath (str): filepath of csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = pd.read_csv(filepath)
     df.dropna(inplace=True)
     df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
@@ -442,6 +446,7 @@ def logistic_regression_cats(filepath):
     Args
     filepath (str): filepath of csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = load_and_preprocess_data(filepath)
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
@@ -481,6 +486,7 @@ def random_forest_cats(filepath):
     Args:
     filepath (str): filepath for csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = load_and_preprocess_data(filepath)
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
@@ -520,6 +526,7 @@ def extended_regression(filepath):
     Args:
     filepath (str): filepath for csv
     '''
+    assert isinstance(filepath, str), "filepath must be a string"
     df = load_and_preprocess_data(filepath)
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
@@ -611,7 +618,7 @@ def plot_feature_importance(df):
     Args:
     df: pd.DataFrame to filter for cats
     '''
-
+    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
@@ -727,6 +734,13 @@ def predict_time_in_shelter(age, dob_month, sex_upon_intake, breed, color, intak
     intake_condition (str): intake condition of cat
     df (pd.DataFrame): dataframe to use
     '''
+
+    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(age, int), "age must be an int"
+    assert isinstance(dob_month, int), "dob_month must be an int"
+    assert isinstance(breed, str), "breed must be a str"
+    assert isinstance(color, str), "color must be a str"
+    assert isinstance(intake_condition, str), "intake_condition must be a str"
     # Filter data for cats and create a binary target for adoption
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
@@ -837,6 +851,13 @@ def predict_adoption(age, dob_month, sex_upon_intake, breed, color, intake_condi
     intake_condition (str): intake condition of cat
     df (pd.DataFrame): dataframe to use
     '''
+    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
+    assert isinstance(age, int), "age must be an int"
+    assert isinstance(dob_month, int), "dob_month must be an int"
+    assert isinstance(breed, str), "breed must be a str"
+    assert isinstance(color, str), "color must be a str"
+    assert isinstance(intake_condition, str), "intake_condition must be a str"
+
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
         pl.Series((cats['outcome_type'] == 'Adoption').to_numpy().astype(int)).alias('adopted')
@@ -890,6 +911,7 @@ def plot_seasonal_effect(df):
     Args:
     df (pd.DataFrame): dataframe to use
     '''
+    assert isinstance(df, pd.DataFrame), "df must be a pandas DataFrame"
 
     cats = df.filter(pl.col('animal_type') == 'Cat')
     cats = cats.with_columns(
